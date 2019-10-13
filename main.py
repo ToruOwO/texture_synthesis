@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import scipy.stats as st
 from scipy import ndimage
@@ -6,6 +7,15 @@ import cv2
 import random
 import math
 import matplotlib.pyplot as plt
+
+
+### build arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('--src', type=str, default='./rings.jpg')
+parser.add_argument('--out_h', type=int, default=100)
+parser.add_argument('--out_w', type=int, default=100)
+parser.add_argument('--w', type=int, default=5)
+
 
 def im2double(im):
     info = np.iinfo(im.dtype) # Get the data type of the input image
@@ -25,6 +35,7 @@ def im2double(im):
 
     # Get all actual indices & index into input array for final output
     return np.take (img, start_idx.ravel()[:,None] + offset_idx.ravel()[::stepsize])
+
 
 def find_matches(template, sample):
     """
@@ -63,15 +74,12 @@ def find_matches(template, sample):
         # normalize mask such that its elements sum to 1
         return kern2d / kern2d.sum()
     
-    # (5, 5)
     mask = G(valid_mask)
-    
-    # (25, 1)
     mask_vec = np.reshape(mask, (-1, 1)) / np.sum(mask)
 
     # partition sample to blocks (represented by column vectors)
     
-    # (25, n_blocks)
+    # (w*w, n_blocks)
     r_sample = im2col_sliding_strided(sample[:, :, 0], w)
     g_sample = im2col_sliding_strided(sample[:, :, 1], w)
     b_sample = im2col_sliding_strided(sample[:, :, 2], w)
@@ -81,12 +89,12 @@ def find_matches(template, sample):
     # vectorized code that calcualtes SSD(template,sample)*mask for all
     # patches
     
-    # (25, 1)
+    # (w*w, 1)
     r_temp = np.reshape(template[:, :, 0], (w*w, 1))
     g_temp = np.reshape(template[:, :, 1], (w*w, 1))
     b_temp = np.reshape(template[:, :, 2], (w*w, 1))
     
-    # (25, n_blocks)
+    # (w*w, n_blocks)
     r_temp = np.tile(r_temp, (1, n_blocks))
     g_temp = np.tile(g_temp, (1, n_blocks))
     b_temp = np.tile(b_temp, (1, n_blocks))
@@ -95,7 +103,7 @@ def find_matches(template, sample):
     g_dist = mask_vec * (g_temp - g_sample)**2
     b_dist = mask_vec * (b_temp - b_sample)**2
     
-    # (25, n_blocks) -> (n_blocks)
+    # (w*w, n_blocks) -> (n_blocks)
     ssd = np.nansum(np.nansum([r_dist, g_dist, b_dist], axis=0), axis=0)
 
     # accept all pixel locations whose SSD error values are less than the 
@@ -109,6 +117,7 @@ def find_matches(template, sample):
     errors = [errors[i] for i in idx[0]]
     
     return best_matches, errors
+
 
 def synth_texture(sample, w, s, fixed_seed=True):
     """Texture Synthesis by Non-parameteric Sampling / Efros and Leung."""
@@ -200,9 +209,11 @@ def synth_texture(sample, w, s, fixed_seed=True):
 
 
 if __name__ == '__main__':
-	source = cv2.imread('rings.jpg')
-	w = 5
-	target = synth_texture(source, w, [100, 100])
+    args = parser.parse_args()
+    print(arguments)
+
+	source = cv2.imread(args.src)
+	target = synth_texture(source, args.w, [args.out_h, args.out_w])
 
 	plt.imshow(target)
 	plt.title('w =' + str(w))
